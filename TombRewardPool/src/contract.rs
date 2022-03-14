@@ -10,14 +10,15 @@ use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, BalanceResponse as Cw20BalanceResponse}
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, UserInfo, PoolInfo};
-use crate::state::{OPERATOR, TOMB, SHIBA, POOLINFO, USERINFO, TOTALALLOCPOINT, POOLSTARTTIME, POOLENDTIME};
+use crate::state::{OPERATOR, TOMB, POOLINFO, USERINFO, TOTALALLOCPOINT, 
+    POOLSTARTTIME, EPOCHENDTIMES, EPOCHTOMBPERSECOND};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "TombGenesisRewardPool";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const TOMB_PER_SECOND: u128 = 96_450_000_000_000_000; //0.09645 ether; // 25000 TOMB / (72h * 60min * 60s);
-const RUNNING_TIME: u128 = 259_200; //3 days;
-const TOTAL_REWARDS: u128 = 25_000_000_000_000_000_000_000; //25000 ether;
+
+const EPOCHTOTALREWARDS:[u128;2] = [80_000_000_000_000_000_000_000u128, 
+                                        60_000_000_000_000_000_000_000u128];
 pub const ETHER: u128 = 1_000_000_000_000_000_000u128;
 pub const DAY: u128 = 86_400; //1 day
 
@@ -35,11 +36,20 @@ pub fn instantiate(
     }
     
     TOMB.save(deps.storage, &deps.api.addr_validate(msg.TOMB.as_str())?)?;
-    SHIBA.save(deps.storage, &deps.api.addr_validate(msg.SHIBA.as_str())?)?;
     POOLSTARTTIME.save(deps.storage, &msg.POOLSTARTTIME)?;
 
-    let pool_end_time: Uint128 = msg.POOLSTARTTIME + Uint128::from(RUNNING_TIME);
-    POOLENDTIME.save(deps.storage, &pool_end_time)?;
+    let epoch_end_time = vec![
+        msg.POOLSTARTTIME + Uint128::from(4 * DAY),
+        msg.POOLSTARTTIME + Uint128::from(9 * DAY)
+    ];
+    EPOCHENDTIMES.save(deps.storage, &epoch_end_time)?;
+
+    let epoch_tomb_per_second = vec![
+        Uint128::from(EPOCHTOTALREWARDS[0] / (4 * DAY)),
+        Uint128::from(EPOCHTOTALREWARDS[1] / (4 * DAY)),
+        Uint128::zero()
+    ];
+    EPOCHTOMBPERSECOND.save(deps.storage, &epoch_tomb_per_second)?;
 
     OPERATOR.save(deps.storage, &info.sender)?;
 
@@ -55,7 +65,7 @@ pub fn balance_of(querier: QuerierWrapper, _token: &Addr, _address: &Addr) -> u1
         _token,
         &Cw20QueryMsg::Balance{
             address: _address.to_string(),
-        }  
+        }
     ).unwrap();
     token_balance.balance.u128()
 }
@@ -112,36 +122,31 @@ fn update_pool(deps: DepsMut, env: &Env, _pid: usize) {
     POOLINFO.save(deps.storage, &pool_info).unwrap();
 }
 pub fn get_generated_reward(storage: &dyn Storage, from_time: Uint128, to_time: Uint128) -> u128 {
-    if from_time >= to_time {
-        return 0;
+    let epoch_end_time = EPOCHENDTIMES.load(storage).unwrap();
+    let epoch_tomb_per_second = EPOCHTOMBPERSECOND.load(storage).unwrap();
+
+    for epoch_id in (1..=2).rev() {
+        if to_time >= epoch_end_time[epoch_id - 1] {
+            if from_time >= epoch_end_time[epoch_id - 1] {
+                return ((to_time - from_time) * (epoch_tomb_per_second[epoch_id])).u128();
+            }
+
+            let mut generated_reward = (to_time - epoch_end_time[epoch_id - 1]) * epoch_tomb_per_second[epoch_id];
+            if epoch_id == 1 {
+                return (generated_reward + ((epoch_end_time[0]-from_time) * epoch_tomb_per_second[0])).u128();
+            }
+            for epoch_id in (1..=epoch_id-1).rev(){
+                if from_time >= epoch_end_time[epoch_id - 1] {
+                    return (generated_reward + ((epoch_end_time[epoch_id]-from_time) * epoch_tomb_per_second[epoch_id])).u128();
+                }
+                generated_reward +=  
+                    (epoch_end_time[epoch_id] - epoch_end_time[epoch_id - 1]) * epoch_tomb_per_second[epoch_id];
+            }
+            return (generated_reward + (epoch_end_time[0]-from_time) * epoch_tomb_per_second[0]).u128();
+        }
+        return ((to_time - from_time) * epoch_tomb_per_second[0]).u128();
     }
-
-    let mut pool_end_time = POOLENDTIME.load(storage).unwrap();
-    let pool_start_time = POOLSTARTTIME.load(storage).unwrap();
-
-    if to_time >= pool_end_time {
-        if from_time >= pool_end_time{ 
-            return 0;
-        }
-        if from_time <= pool_start_time {
-            pool_end_time = (pool_end_time - pool_start_time) * Uint128::from(TOMB_PER_SECOND);
-        }
-        else {
-            pool_end_time = (pool_end_time - from_time) * Uint128::from(TOMB_PER_SECOND);
-        }
-
-        return pool_end_time.u128();
-    } else {
-        if to_time <= pool_start_time { 
-            return 0;
-        }
-
-        if from_time <= pool_start_time {
-          return (to_time - pool_start_time).u128() * TOMB_PER_SECOND;
-        }
-
-        return (to_time - from_time).u128() * TOMB_PER_SECOND;
-    }
+    0u128
 }
 
 fn safe_tomb_transfer( deps: DepsMut, env: Env, _to: Addr, _amount: Uint128) -> Option<CosmosMsg> {
@@ -250,9 +255,10 @@ pub fn try_governance_recover_unsupported(
         return Err(ContractError::Unauthorized{ });
     }
 
-    let pool_end_time = POOLENDTIME.load(deps.storage)?;
-    if Uint128::from(env.block.time.seconds()) < pool_end_time + Uint128::from(30 * DAY) {
-        // do not allow to drain core token (TOMB or lps) if less than 30 days after pool ends
+    let epoch_end_times = EPOCHENDTIMES.load(deps.storage)?;
+    
+    if Uint128::from(env.block.time.seconds()) < epoch_end_times[1] + Uint128::from(90 * DAY) {
+        // do not allow to drain core token (TOMB or lps) if less than 90 days after pool ends
         let tomb = TOMB.load(deps.storage)?;
         if token == tomb {
             return Err(ContractError::Tomb{ });
@@ -430,12 +436,7 @@ pub fn try_deposit(
         };
         msgs.push(CosmosMsg::Wasm(msg_transfer_from));
 
-        let shiba = SHIBA.load(_deps.storage)?;
-        if pool.token == shiba {
-            user.amount = user.amount + amount * Uint128::from(9900u128) / Uint128::from(10000u128);
-        } else {
-            user.amount = user.amount + amount;
-        }
+        user.amount += amount;
     }
     user.rewardDebt = user.amount * pool.accTombPerShare / Uint128::from(ETHER);
 

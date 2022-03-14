@@ -257,8 +257,8 @@ pub fn try_governance_recover_unsupported(
 
     let epoch_end_times = EPOCHENDTIMES.load(deps.storage)?;
     
-    if Uint128::from(env.block.time.seconds()) < epoch_end_times[1] + Uint128::from(90 * DAY) {
-        // do not allow to drain core token (TOMB or lps) if less than 90 days after pool ends
+    if Uint128::from(env.block.time.seconds()) < epoch_end_times[1] + Uint128::from(30 * DAY) {
+        // do not allow to drain core token (TOMB or lps) if less than 30 days after pool ends
         let tomb = TOMB.load(deps.storage)?;
         if token == tomb {
             return Err(ContractError::Tomb{ });

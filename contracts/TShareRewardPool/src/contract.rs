@@ -250,8 +250,8 @@ pub fn try_governance_recover_unsupported(
     }
 
     let pool_end_time = POOLENDTIME.load(deps.storage)?;
-    if Uint128::from(env.block.time.seconds()) < pool_end_time + Uint128::from(90 * DAY) {
-        // do not allow to drain core token (TSHARE or lps) if less than 90 days after pool ends
+    if Uint128::from(env.block.time.seconds()) < pool_end_time + Uint128::from(30 * DAY) {
+        // do not allow to drain core token (TSHARE or lps) if less than 30 days after pool ends
         let tshare = TSHARE.load(deps.storage)?;
         if token == tshare {
             return Err(ContractError::TShare{ });

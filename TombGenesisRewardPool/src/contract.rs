@@ -55,7 +55,7 @@ pub fn balance_of(querier: QuerierWrapper, _token: &Addr, _address: &Addr) -> u1
         _token,
         &Cw20QueryMsg::Balance{
             address: _address.to_string(),
-        }  
+        }
     ).unwrap();
     token_balance.balance.u128()
 }
@@ -252,7 +252,7 @@ pub fn try_governance_recover_unsupported(
 
     let pool_end_time = POOLENDTIME.load(deps.storage)?;
     if Uint128::from(env.block.time.seconds()) < pool_end_time + Uint128::from(30 * DAY) {
-        // do not allow to drain core token (TOMB or lps) if less than 30 days after pool ends
+        // do not allow to drain core token (TOMB or lps) if less than 90 days after pool ends
         let tomb = TOMB.load(deps.storage)?;
         if token == tomb {
             return Err(ContractError::Tomb{ });
