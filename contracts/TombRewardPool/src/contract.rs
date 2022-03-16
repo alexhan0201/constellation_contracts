@@ -14,7 +14,7 @@ use crate::state::{OPERATOR, TOMB, POOLINFO, USERINFO, TOTALALLOCPOINT,
     POOLSTARTTIME, EPOCHENDTIMES, EPOCHTOMBPERSECOND};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "TombGenesisRewardPool";
+const CONTRACT_NAME: &str = "TombRewardPool";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const EPOCHTOTALREWARDS:[u128;2] = [80_000_000_000_000_000_000_000u128, 

@@ -55,7 +55,7 @@ pub fn balance_of(querier: QuerierWrapper, _token: &Addr, _address: &Addr) -> u1
         _token,
         &Cw20QueryMsg::Balance{
             address: _address.to_string(),
-        }  
+        }
     ).unwrap();
     token_balance.balance.u128()
 }
