@@ -14,7 +14,7 @@ use crate::state::{OPERATOR, TOMB, POOLINFO, USERINFO, TOTALALLOCPOINT,
     POOLSTARTTIME, EPOCHENDTIMES, EPOCHTOMBPERSECOND};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "TombRewardPool";
+const CONTRACT_NAME: &str = "TombGenesisRewardPool";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const EPOCHTOTALREWARDS:[u128;2] = [80_000_000_000_000_000_000_000u128, 
@@ -207,7 +207,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Add{ alloc_point, token, with_update, last_reward_time}
-            => try_add(deps, env, alloc_point, token, with_update, last_reward_time ),
+            => try_add(deps, env, info, alloc_point, token, with_update, last_reward_time ),
 
         ExecuteMsg::Set{ pid, alloc_point}
             => try_set(deps, env, pid, alloc_point ),
@@ -473,6 +473,7 @@ pub fn try_set(
 pub fn try_add(
     deps: DepsMut, 
     env: Env, 
+    info: MessageInfo,
     alloc_point: Uint128,
     token: Addr,
     with_update: bool,
@@ -480,6 +481,11 @@ pub fn try_add(
 ) 
     -> Result<Response, ContractError>
 {
+    let operator = OPERATOR.load(deps.storage)?;
+    if operator != info.sender {
+        return Err(ContractError::Unauthorized{ });
+    }
+
     if check_pool_duplicate(&deps, token.clone()) == true {
         return Err(ContractError::AlreadyExistingPool {})
     }
