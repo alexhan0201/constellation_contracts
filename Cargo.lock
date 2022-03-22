@@ -177,6 +177,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "TBond"
+version = "0.0.1"
+dependencies = [
+ "BasisAsset",
+ "BondTreasury",
+ "IMasonry",
+ "Oracle",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema 0.16.5",
+ "cosmwasm-std 0.16.5",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terraswap",
+ "thiserror",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

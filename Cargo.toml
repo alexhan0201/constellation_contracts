@@ -29,6 +29,10 @@ incremental = false
 codegen-units = 1
 incremental = false
 
+[profile.release.package.Tomb]
+codegen-units = 1
+incremental = false
+
 [profile.release]
 rpath = false
 lto = true
