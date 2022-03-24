@@ -15,6 +15,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetOwner{ } => {
             let owner = OPERATOR.load(deps.storage).unwrap();
             to_binary(&owner)
-        }
+        },
     }
 }

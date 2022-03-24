@@ -25,8 +25,8 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     OPERATOR.save(deps.storage, &info.sender);
-    NAME.save(deps.storage, msg.NAME)?;
-    SYMBOL.save(deps.storage, msg.SYMBOL)?;
+    NAME.save(deps.storage, &String::from("3BOND"))?;
+    SYMBOL.save(deps.storage, &String::from("3BOND"))?;
     Ok(Response::new()
         .add_attribute("method", "instantiate"))
 }
@@ -40,27 +40,27 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::BurnFrom { account, amount } => try_burn_from(deps, env, info, account, amount),
-        ExecuteMsg::Mint { recipient, amount } => try_mint(deps, env, info, recipient, amount),
+        ExecuteMsg::Mint { recipient, amount } => try_mint(deps, info, recipient, amount),
     }
 }
 
 fn try_mint(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     recipient: Addr,
     amount: Uint128,
-) -> Result<bool, ContractError> {
+) -> Result<Response, ContractError> {
     check_onlyoperator(deps.storage, info.sender);
-    let balance_before: Uint128 = balance_of(deps.querier, recipient.clone());
-    perform_mint(deps.storage, _env, recipient.clone(), amount)unwrap();
-    let balance_after: Uint128 = balance_of(deps.querier, recipient);
-    Ok(balance_after > balance_before)
+    let balance_before: Uint128 = balance_of(deps.storage, recipient.clone());
+    perform_mint(deps.storage, recipient.clone(), amount).unwrap();
+    let balance_after: Uint128 = balance_of(deps.storage, recipient);
+    let ret: bool = balance_after > balance_before;
+    Ok(Response::new()
+        .add_attribute("action", ret.to_string()))
 }
 
 fn perform_mint(
     store: &mut dyn Storage,
-    _env: Env,
     recipient: Addr,
     amount: Uint128
 ) -> Result<Response,ContractError> {
@@ -73,12 +73,12 @@ fn perform_mint(
     let mut balance = BALANCES.load(store, recipient.clone())?;
     balance += amount;
     BALANCES.save(store, recipient.clone(), &balance)?;
-    let mut msgs = Vec::new();
+    let mut msgs: Vec<CosmosMsg> = vec![];
     Ok(Response::new()
         .add_messages(msgs))
 }
 
-fn try_burn(deps: DepsMut, _env: Env, info:MessageInfo, amount: Uint128) -> Result<Response,ContractError> {
+fn try_burn(deps: DepsMut, _env: Env, info:MessageInfo, recipient: Addr, amount: Uint128) -> Result<Response,ContractError> {
     let mut sender = info.sender;
     if recipient != Addr::unchecked("".to_string()) {
         return Err(ContractError::ZeroAddrError{ })
@@ -98,7 +98,7 @@ fn try_burn(deps: DepsMut, _env: Env, info:MessageInfo, amount: Uint128) -> Resu
         .add_messages(msgs))
 }
 
-fn try_burn_from(deps: DepsMut, _env: Env, info:MessageInfo, account: Addr, amount: Uint128) -> Result<Response,ContractError> {
+fn try_burn_from(deps: DepsMut, _env: Env, info: MessageInfo, recipient: Addr, amount: Uint128) -> Result<Response,ContractError> {
     let mut sender = info.sender;
     if recipient != Addr::unchecked("".to_string()) {
         return Err(ContractError::ZeroAddrError{ })

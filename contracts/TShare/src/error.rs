@@ -12,11 +12,17 @@ pub enum ContractError {
     #[error("zero address")]
     ZeroAddrError {},
 
+    #[error("distribute error")]
+    DistributeError {},
+
+    #[error("farming incentive error")]
+    FarmingIncentiveFundError {},
+
+    #[error("dev address error")]
+    DevAddrError {},
+
     #[error("burn error")]
     BurnError {},
-
-    #[error("allowance error")]
-    AllowanceError {},
 
     #[error("Error:{e1}")]
     Testing{e1: String}
